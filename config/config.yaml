@@ -1,0 +1,37 @@
+general:
+  num_atoms: 3
+  num_mols: 27
+  input_file_format:
+    type: rpmd
+    path: input_files
+    pos_file_name: pos.xyz
+    frc_file_name: frc.xyz
+    ener_file_name: ener.out
+  num_frames: 1000
+  charge_values:
+    atom_1: 8
+    atom_2: 1
+    atom_3: 1
+  sim_type:
+    method: pbc
+    pbc_boundary: 9.3214112017424995
+  hdf5_path: dataset
+  hdf5_file_name: dataset_md.hdf5
+descriptor:
+  name: coulomb
+  cutoff: 5
+  feat_vect_size: 20
+training:
+  type: NN
+  NN:
+    batch_size: 40
+    scaling: False
+    scaling_type: 
+    train_size: 75
+    validation_size: 25
+    hidden_layers: [30, 30]
+    activation: ['Tanh', 'Tanh', 'Linear']
+    optimizer: sgd
+    epochs: 200
+    device: cuda
+
