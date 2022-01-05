@@ -5,7 +5,13 @@ from pathlib import Path
 import h5py
 
 class Scaling(ABC):
+    """ Base class for feature scaling.
 
+    Parameters
+    ----------
+    type: string
+        String refering to the scaling method to be used.    
+    """ 
     def __init__(self, type):
         self.type = type
 
@@ -13,12 +19,32 @@ class Scaling(ABC):
     def run(self, *args, **kwargs):
         pass
 
+    """ Function returns to the type of the scaling used.
+
+    Returns
+    -------
+    type: string
+        String refering to the scaling method that is set.
+    """
     def get_type(self):
         return self.type
 
 
 class StandScaler(Scaling):
+    """ A Class to perform standard scaling of the features. 
+   
+    Parameters
+    ----------
+    filepath: string
+        HDF5 file path where the feature datasets are stored.
 
+    Returns
+    -------
+    mean: numpy array
+        array containing the mean values of the features.
+    std: numpy array
+        array containing the standard deviation values of the features.
+    """
     def run(self, filepath):
         # read the hdf5 files and calculate the mean and variance matrices
         path = os.getcwd()

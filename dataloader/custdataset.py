@@ -25,9 +25,9 @@ class CustomDataset(Data.Dataset):
         cache to work.
     transform: string
         Supports standard scaler. If support requested, the mean array and std array need to be passed.
-    mean: NumPy array
+    mean: numpy array
         To support standard scaler((X - mu)/std), mean array need to be passed.
-    std: NumPy array
+    std: numpy array
         To support standard scaler((X - mu)/std), std array need to be passed.  
     """
 

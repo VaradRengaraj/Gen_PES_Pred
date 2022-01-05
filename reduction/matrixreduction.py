@@ -36,12 +36,12 @@ class SubMatrixReduce(MatrixReduce):
 
     Parameters
     ----------
-    inp_matrix: NumPy 2D array
+    inp_matrix: numpy 2D array
         The large sparse array to which submatrix reduction is performed.
 
     Returns
     -------
-    lst_of_submatx: List
+    lst_of_submatx: list
         List of submatrixes.
     """       
     def reduce(self, inp_matrix):
