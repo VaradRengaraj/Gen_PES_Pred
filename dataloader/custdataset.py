@@ -12,7 +12,7 @@ class CustomDataset(Data.Dataset):
     phase. During loading, caching can be done for large datasets. If not, all the data will loaded to the memory. 
     GPU friendly. Typically instantiated for train and test datasets. 
 
-    Parameter
+    Parameters
     ----------
     frame_list: list
         List containing the frame numbers. 
