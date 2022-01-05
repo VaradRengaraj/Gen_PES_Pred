@@ -58,7 +58,6 @@ class CoulombDesc(Descriptor):
     """
 
     def create(self, num_atoms, num_mols, data, charge, cutoff_limit, bc, cutoff=False):
-
         total_elements = num_atoms*num_mols
         self.coulomb = np.zeros((total_elements, total_elements))
 
