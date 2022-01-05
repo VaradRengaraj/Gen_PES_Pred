@@ -8,6 +8,28 @@ from pathlib import Path
 import numpy
 
 class CustomDataset(Data.Dataset):
+    """Pytorch custom dataset class, loads data from the files which are in the hdf5 format during dataloading 
+    phase. During loading, caching can be done for large datasets. If not, all the data will loaded to the memory. 
+    GPU friendly. Typically instantiated for train and test datasets. 
+
+    Parameters
+    ----------
+    frame_list: list
+        List containing the frame numbers. 
+    filepath: string
+        Directory path containing the hdf5 datset.
+    load_data: bool
+        If True, loads the entire dataset when dataloader is invoked during training.
+    data_cache_size: int
+        Number of frames stored in the cache, during dataloader invokation. load_data should be False for 
+        cache to work.
+    transform: string
+        Supports standard scaler. If support requested, the mean array and std array need to be passed.
+    mean: NumPy array
+        To support standard scaler((X - mu)/std), mean array need to be passed.
+    std: NumPy array
+        To support standard scaler((X - mu)/std), std array need to be passed.  
+    """
 
     def __init__(self, frame_list, filepath, load_data, data_cache_size = 50, transform=None, mean=None, std=None):
         super().__init__()
@@ -64,7 +86,18 @@ class CustomDataset(Data.Dataset):
         self.init_cache = True
 
     def _prepare_initial_data(self, filename, load_data):        
+        """prepares the initial cache when the CustomDataset is instantiated. When the dataloader is invoked 
+        we make sure there is data already in the cache. If load_data is True, all the data from the hdf5 files
+        are loaded.
 
+        Parameters
+        ----------
+        filename: string
+            HDF5 filename.
+        load_data: bool
+            If True, loads the complete hdf5 file, else data_cache_size number of force/energy frames and the 
+            corresponding energy values are loaded in the cache.
+        """
         hf = h5py.File(filename, 'r')
         
         if load_data:
@@ -79,8 +112,6 @@ class CustomDataset(Data.Dataset):
             lst_tmp = []
             dataset_name = "frame_%d" % frame
             data = np.array(hf['.'][dataset_name])
-            #lst_tmp.append(data)
-            #lst_tmp.append(unused)
             #print("data.shape", data.shape)
             if self.transform == "StandSc":
                 data = (data-self.mean)/self.std
@@ -89,11 +120,8 @@ class CustomDataset(Data.Dataset):
             lst_tmp2 = []
             frc_name = "frc_%d" %frame
             data = np.array(hf['.'][frc_name])
-            #lst_tmp2.append(data)
-            #lst_tmp2.append(unused)
             #print("force.shape", data.shape)
             self.data_cache[frc_name] = data    
-
             tmp = np.zeros((data.shape[0], 1))
             tmp.fill(np.array(hf['.']["ener"])[frame].item())
             #print("ener.shape", tmp.shape)
@@ -111,7 +139,14 @@ class CustomDataset(Data.Dataset):
         hf.close()       
 
     def _load_cache(self, filename):
+        """ fills cache. This function gets called when the dataloader requesting data and if half of the cache is 
+        already empty or in other words half of the data in cache has already been consumed.
 
+        Parameters
+        ----------
+        filename: string
+            Name of hdf5 file.
+        """
         hf = h5py.File(filename, 'r')
         
         if self.data_cache_size == 1:
@@ -124,8 +159,6 @@ class CustomDataset(Data.Dataset):
             lst_tmp = []
             dataset_name = "frame_%d" % frame
             data = np.array(hf['.'][dataset_name])
-            #lst_tmp.append(data)
-            #lst_tmp.append(unused)
             if self.transform == "StandSc":
                 data = (data-self.mean)/self.std                    
 
@@ -134,10 +167,7 @@ class CustomDataset(Data.Dataset):
             lst_tmp2 = []
             frc_name = "frc_%d" %frame
             data = np.array(hf['.'][frc_name])
-            #lst_tmp2.append(data)
-            #lst_tmp2.append(unused)
             self.data_cache[frc_name] = data
-
             tmp = np.zeros((data.shape[0], 1))
             tmp.fill(np.array(hf['.']["ener"])[frame].item())
             ener_name = "ener_%d" %frame
@@ -151,11 +181,30 @@ class CustomDataset(Data.Dataset):
         hf.close()
 
     def __len__(self):
+        """ function used by the pytorch dataset class. 
+ 
+        Returns
+        -------
+        len: int
+            Number of entries in this dataset.
+        """
         return len(self.frame_list)
 
     
     def __getitem__(self, index):
+        """ function used by the pytorch dataset class to get data when dataloader is requesting data for this 
+        dataset.
 
+        Parameters
+        ----------
+        index: int
+            index of the data entry requested.
+
+        Returns
+        -------
+        feat_arr, frc_arr, ener_arr: Torch arrays
+            Tuple of the feature, force and energy torch array.
+        """
         if index == 0:
         # reset the cache and build it new. Do this if only the frame list's length is larger than cache size
             if len(self.frame_list) > self.data_cache_size and self.init_cache == False:
@@ -183,9 +232,15 @@ class CustomDataset(Data.Dataset):
         dataset_name = "frame_%d" % file_no
         frc_name = "frc_%d" % file_no
         ener_name = "ener_%d" % file_no
-        feat_arr = torch.from_numpy(self.data_cache[dataset_name]).to('cuda:0')
-        frc_arr = torch.from_numpy(self.data_cache[frc_name]).to('cuda:0')
-        ener_arr = torch.from_numpy(self.data_cache[ener_name]).to('cuda:0')
+
+        if torch.cuda.is_available():
+            feat_arr = torch.from_numpy(self.data_cache[dataset_name]).to('cuda:0')
+            frc_arr = torch.from_numpy(self.data_cache[frc_name]).to('cuda:0')
+            ener_arr = torch.from_numpy(self.data_cache[ener_name]).to('cuda:0')
+        else:
+            feat_arr = torch.from_numpy(self.data_cache[dataset_name])
+            frc_arr = torch.from_numpy(self.data_cache[frc_name])
+            ener_arr = torch.from_numpy(self.data_cache[ener_name])
 
         # special case when cache_size is equal to 1
         if self.data_cache_size == 1:
@@ -198,7 +253,6 @@ class CustomDataset(Data.Dataset):
         #print("feat_arr.shape", feat_arr.shape)
         #print("ener_arr", ener_arr)
 
-        #print("feat_arr.shape[1]", feat_arr.shape[1])
         # check if the feat arr size is less than max_feat_arr size, if so append zeros and return
         if 0:
             if type(feat_arr) is numpy.ndarray:
@@ -210,9 +264,5 @@ class CustomDataset(Data.Dataset):
             else:
                 raise RuntimeError('The feature array in hdf5 file is not in the numpy format')
 
-        # return the features, frces and the energy
-        #feature_arr = torch.from_numpy(temp1)
-        #print("ener_arr", ener_arr)
         return (feat_arr, frc_arr, ener_arr)
-        #return feature_arr
 
