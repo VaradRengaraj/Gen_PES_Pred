@@ -46,8 +46,8 @@ class CustomDataset(Data.Dataset):
 
         # Validate the file path and check if the frames, forces and energy file is present
         # Also check if the num of frames matches the num of frc frames.
-
         dirpath = os.path.join(os.getcwd(), filepath)
+
         if not os.path.exists(dirpath):
             raise RuntimeError('Dataset folder not found')
 
@@ -70,14 +70,6 @@ class CustomDataset(Data.Dataset):
 
         if len(data_frames_list) != len(frc_frames_list):
             raise RuntimeError('Num of data frames is not equal to the num of force frames')
-
-        if 0:
-            lst_frame_size = []
-            for frame in data_frames_list:
-                tmp_arr = np.array(hf['.'][frame])
-                lst_frame_size.append(tmp_arr.shape[1])
-            self.max_frame_size = max(lst_frame_size)
-            #print("max_frame_size", self.max_frame_size)
 
         # Prepare initial cache based on the frame list/ load the entire date if load_data=True
         hf.close()
@@ -112,19 +104,17 @@ class CustomDataset(Data.Dataset):
             lst_tmp = []
             dataset_name = "frame_%d" % frame
             data = np.array(hf['.'][dataset_name])
-            #print("data.shape", data.shape)
+
             if self.transform == "StandSc":
                 data = (data-self.mean)/self.std
-            self.data_cache[dataset_name] = data
 
+            self.data_cache[dataset_name] = data
             lst_tmp2 = []
             frc_name = "frc_%d" %frame
             data = np.array(hf['.'][frc_name])
-            #print("force.shape", data.shape)
             self.data_cache[frc_name] = data    
             tmp = np.zeros((data.shape[0], 1))
             tmp.fill(np.array(hf['.']["ener"])[frame].item())
-            #print("ener.shape", tmp.shape)
             ener_name = "ener_%d" %frame
             self.data_cache[ener_name] = tmp
 
@@ -159,11 +149,11 @@ class CustomDataset(Data.Dataset):
             lst_tmp = []
             dataset_name = "frame_%d" % frame
             data = np.array(hf['.'][dataset_name])
+
             if self.transform == "StandSc":
                 data = (data-self.mean)/self.std                    
 
             self.data_cache[dataset_name] = data
-
             lst_tmp2 = []
             frc_name = "frc_%d" %frame
             data = np.array(hf['.'][frc_name])
@@ -206,22 +196,20 @@ class CustomDataset(Data.Dataset):
             Tuple of the feature, force and energy torch array.
         """
         if index == 0:
-        # reset the cache and build it new. Do this if only the frame list's length is larger than cache size
+            # reset the cache and build it new. Do this if only the frame list's length is larger than cache size
             if len(self.frame_list) > self.data_cache_size and self.init_cache == False:
-                #print("comes here --1")
                 self._prepare_initial_data(self.file_name, self.load_data)
             else:
-                #print("comes here --2")
                 self.init_cache = False
             self.entries_used = 0
 
         else:
-        # return the requested data and update the cache if necessary    
-        # if the size of frame list is smaller than the cache size, additional cache load is not necessary
+            # return the requested data and update the cache if necessary    
+            # if the size of frame list is smaller than the cache size, additional cache load is not necessary
             if len(self.frame_list) > self.data_cache_size and self.data_cache_size > 1:    
                 if self.entries_used == self.data_cache_size/2:
-        #            # delete the first used data_cache_size/2 entries from the cache.
-        #            #print("cache_size/2", self.data_cache_size/2)
+                    # delete the first used data_cache_size/2 entries from the cache.
+                    # print("cache_size/2", self.data_cache_size/2)
                     for key in list(self.data_cache.keys())[:(int(self.data_cache_size/2)*3)]:
                         del self.data_cache[key]
                     self._load_cache(self.file_name)
@@ -248,11 +236,6 @@ class CustomDataset(Data.Dataset):
                 del self.data_cache[key] 
             self._load_cache(self.file_name)
        
-        #print("frc_arr", frc_arr)
-        #print("frc_arr.shape", frc_arr.shape)
-        #print("feat_arr.shape", feat_arr.shape)
-        #print("ener_arr", ener_arr)
-
         # check if the feat arr size is less than max_feat_arr size, if so append zeros and return
         if 0:
             if type(feat_arr) is numpy.ndarray:
