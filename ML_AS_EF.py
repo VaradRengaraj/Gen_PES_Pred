@@ -13,12 +13,19 @@ from pathlib import Path
 from models.neuralnetwork import NeuralNetwork
 from scaling.scaling import StandScaler
 
+# ----------------------------------------------------------------------
+#                  Defining the Gen_PES_Pred
+#              Building block for the ML interatomic potentials
+# ----------------------------------------------------------------------
+
 class ML_AS_EF():
+
+    # Initializing the Gen_PES_Pred
     def __init__(self, configfile=None):
 
         dirpath = os.path.join(os.getcwd(), "config")
         filepath = os.path.join(dirpath, configfile)
-
+        # Yaml config file parsing
         if not os.path.exists(filepath):
             msg = "Config file doesn't exist"
             raise TypeError(msg)
@@ -180,7 +187,8 @@ class ML_AS_EF():
         #dump all the yaml parsed nn information
             for k, v in self.algorithm_settings.items():
                 print(k, v)
-    
+
+    # function returing file descriptor    
     def filecheck(self, fn):
         try:
             fd = open(fn, "r")
@@ -188,10 +196,12 @@ class ML_AS_EF():
         except IOError:
             return 0
 
+    # grouper function
     def grouper(self, iterable, n, fillvalue=None):
         args = [iter(iterable)] * n
         return zip_longest(*args, fillvalue=fillvalue)
-    
+
+    # function parsing the coordinate frames    
     def feature_frames(self, hf, fd_pos, charge_array):
         counter = 0
         lst_total_frames = []
@@ -206,7 +216,6 @@ class ML_AS_EF():
         size_feat = self.descriptor_settings['feat_vect_size']
 
         for lines in self.grouper(fd_pos, total_atoms+extra_lines, ''):
-
             if len(lines) < total_atoms+extra_lines:
                 raise ValueError(
                      "Reached end of the position file"
@@ -216,7 +225,6 @@ class ML_AS_EF():
 
             lst2 = []
             lst = []
-
             for j in range(extra_lines, len(lines)):
                 sttr = ' '.join(lines[j].split()).split(' ', 1)[1]
                 lst = [float(s) for s in sttr.split(' ')]
@@ -225,7 +233,6 @@ class ML_AS_EF():
             #print("np")
             frame_pos = np.asarray(lst2)
             print(frame_pos)
-
             col = CoulombDesc("coulomb")
             colmat = col.create(no_atoms, no_mols, frame_pos, charge_array, 1.5, bc, True)
             submatreduce = SubMatrixReduce("submatreduce")
@@ -233,7 +240,6 @@ class ML_AS_EF():
             matreduce = EVD("evd")
 
             for i in range(0, len(lst_submats)):
-
                 if 0:
                     from numpy import loadtxt, savetxt
                     # save array
@@ -256,7 +262,6 @@ class ML_AS_EF():
             ar = ar.reshape(no_atoms*no_mols, size_feat)
             dataset_name = "frame_%d" % counter
             hf.create_dataset(dataset_name, data=ar, shape=(total_atoms,size_feat), compression='gzip', chunks=True)
-
             #print(lst2)
             if 0:
                 lst_total_frames.append(lst_submats)
@@ -265,6 +270,7 @@ class ML_AS_EF():
             if counter == num_frames:
                 break
 
+    # function parsing the force frames
     def force_frames(self, hf, fd_frc):
         total_atoms = self.descriptor_settings['total_atoms']
         extra_lines = self.descriptor_settings['extra_lines']
@@ -274,7 +280,6 @@ class ML_AS_EF():
         counter = 0
 
         for lines in self.grouper(fd_frc, total_atoms+extra_lines, ''):
-
             if len(lines) < total_atoms+extra_lines:
                 raise ValueError(
                      "Reached end of the forces file"
@@ -282,7 +287,6 @@ class ML_AS_EF():
 
             lst2 = []
             lst = []
-
             for j in range(extra_lines, len(lines)):
                 sttr = ' '.join(lines[j].split()).split(' ', 1)[1]
                 lst = [float(s) for s in sttr.split(' ')]
@@ -291,7 +295,6 @@ class ML_AS_EF():
             forces_frame = np.asarray(lst2)
             #print(forces_frame)
             #print("frcs_frame_shape", forces_frame.shape)
-
             if 0:
                 lst_f = lst_total_frames[counter]
 
@@ -306,19 +309,18 @@ class ML_AS_EF():
                     lst_f[j] = new
 
                 lst_total_frames[counter] = lst_f
-
             counter += 1
 
             if counter == num_frames:
                 break
 
+    # function parsing the energy frames
     def ener_frames(self, hf, fd_ener):
         counter = 0
         ener_dataset = "ener"
         num_frames = self.num_frames
 
         for lines in self.grouper(fd_ener, 1, ''):
-
             if len(lines) < 1:
                 raise ValueError(
                  "Reached end of the energy file"
@@ -338,7 +340,6 @@ class ML_AS_EF():
             #ener_frame = ener_frame.reshape(len(lst_f),1)
 
             enner_data = ener_val[3].reshape(1,1)
-
             if counter == 0:
                 hf.create_dataset(ener_dataset, data=enner_data, shape=(1,1), maxshape=(10000,1), compression='gzip', chunks=True)
             else:
@@ -352,26 +353,23 @@ class ML_AS_EF():
                     lst_f[j] = new
 
                 lst_total_frames[counter] = lst_f
-
             counter += 1
 
             if counter == num_frames:
                 break
 
+    # function returns the number of elements in a frame
     def find_no_element(self, filename):
-
         dirpath = os.path.join(os.getcwd(), filename)
 
         if not os.path.exists(dirpath):
             raise RuntimeError('Dataset folder not found')
-
         p = Path(dirpath)
         assert(p.is_dir())
         files = sorted(p.glob('*.hdf5'))
 
         if len(files) < 1:
             raise RuntimeError('No hdf5 datasets found')
-
         hdf5_file = files[0]
         hf = h5py.File(hdf5_file, 'r')
         hf_dataset_list = list(hf.keys())
@@ -382,8 +380,9 @@ class ML_AS_EF():
         else:
             return 0
 
+    # function where the dataset is generated (if necessary) and the model is executed
     def run(self):
-    # check if the descriptor dict is empty, if empty hdf5 dataset generation is not done.
+        # check if the descriptor dict is empty, if empty hdf5 dataset generation is not done.
         if self.descriptor_settings:
             fd_pos = self.filecheck(self.descriptor_settings['input_pos_fname'])
             fd_frc = self.filecheck(self.descriptor_settings['input_frc_fname'])
@@ -395,9 +394,8 @@ class ML_AS_EF():
             for i in range(self.descriptor_settings['num_atoms']):
                 atom = "atom_%d" % (i+1)
                 charge_arr_org[i] = self.descriptor_settings[atom]
-
             j = 0
-    
+
             for i in range(0, self.descriptor_settings['num_atoms']*self.descriptor_settings['num_mols']):
                 charge_array[i] = charge_arr_org[j]
                 j += 1
@@ -414,12 +412,11 @@ class ML_AS_EF():
             self.force_frames(hf, fd_frc)
             self.ener_frames(hf, fd_ener)
 
-    # train the model, presently only nn is supported. 
-    # create training and validation lists
+        # train the model, presently only NN is supported. 
+        # create training and validation lists
         #print((self.algorithm_settings['train_size']/100)*self.num_frames)
         print("num_frames",self.num_frames)
         print("dataset_path",self.hdf5_dirpath)
-
         lst_trng = random.sample(range(0,1000), 750)
         lst_val = list(set(list(range(0, self.num_frames))) - set(lst_trng))
         print(lst_trng)
