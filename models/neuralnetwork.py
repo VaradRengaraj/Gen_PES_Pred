@@ -8,14 +8,39 @@ from numpy import savetxt
 import numpy as np
 
 class NeuralNetwork():
+    """ Neural network(NN) definition class, neural network is created, trained. GPU friendly. Typically instanstiated
+    after the model is chosen as neural network. Uses Regressor class, for the optimizer facility.
+
+    Parameters
+    ----------
+    elements: int
+        Int containing the number of elements in the system.
+    hiddenlayers: list or dict
+        List containing the number of nodes in each hidden layer.
+    activation: list
+        List containing the activation function names for each hidden layer.
+    optimizer: dict
+        Dict whose parameters are optimizer method and the parameters used.
+    random_seed: int
+        Int containing the random seed value.
+    batch_size: int
+        Int containing the batch size used for NN training. This is not used now. 
+        Batch size comes automatically from dataloader.
+    epoch: int
+        Int containing the number of NN training cycles.
+    validate: bool
+        Boolean to inform if we are using validation dataset.
+    force_matching: bool
+        Boolean to inform if we are training forces also.  
+    """
+
 
     def __init__(self, elements, hiddenlayers, activation, optimizer, random_seed, batch_size, epoch, validate, force_matching):
-
         self.elements = elements
         print(f"No of elements   : {self.elements}")
-
         self._hiddenlayers = hiddenlayers
 
+        # Hidden layer list is saved.
         if isinstance(hiddenlayers, list):
             hl = {}
             for element in range(self.elements):
@@ -32,7 +57,6 @@ class NeuralNetwork():
 
         # Set-up activation
         self.activation = {}
-
         activation_modes = ['Tanh', 'Sigmoid', 'Linear', 'ReLU',
                             'PReLU', 'ReLU6', 'RReLU', 'SELU', 'CELU',
                             'Softplus', 'Softshrink', 'Softsign', 'Tanhshrink',
@@ -64,7 +88,6 @@ class NeuralNetwork():
             "The length of the activation function is inconsistent "+\
             "with the length of the hidden layers."
 
-
         if random_seed:
             torch.manual_seed(random_seed)
 
@@ -72,15 +95,28 @@ class NeuralNetwork():
         self.epoch = epoch
         self.validate = validate
         self.force_matching = force_matching
-        self.device = "cuda:0"
+  
+        if torch.cuda.is_available():       
+            self.device = "cuda:0"
+        else:
+            self.device = "cpu"
 
     def train(self, TrainData, optimizer, ValData=None):
-
+        """ function to train the NN.
+        
+        Parameters
+        ----------
+        TrainData: DataLoader obj
+            DataLoader instance used to get training dataset.
+        Optimizer: Dict
+            Dict containing the model and parameters list.
+        ValData: DataLoader obj
+            DataLoader instance used to get validation dataset.
+        """
         if(isinstance(TrainData, Data.DataLoader)):
             train_features, train_frces, train_labels = next(iter(TrainData))
             self.no_of_descriptors = train_features.shape[2]
             print("no_of_desc", self.no_of_descriptors)
-
         else:
             msg = f"Don't recognize {type(TrainData)}. " +\
                   f"Please refer to documentations!"
@@ -141,14 +177,10 @@ class NeuralNetwork():
         if 0:
             scheduler = StepLR(self.optimizer, step_size=25, gamma=0.1)
 
-
-#        print(f"No of structures   : {self.no_of_structures}")
         print(f"No of descriptors  : {self.no_of_descriptors}")
         print(f"No of parameters   : {self.total_parameters}")
         print(f"No of epochs       : {self.epoch}")
         print(f"Optimizer          : {optimizer['method']}")
-#        print(f"Force_coefficient  : {self.force_coefficient}")
-#        print(f"Stress_coefficient : {self.stress_coefficient}")
         print(f"Batch_size         : {self.batch_size}\n")
 
         # Run Neural Network Potential Training
@@ -160,14 +192,6 @@ class NeuralNetwork():
 
         for epoch in range(300): #range(self.epoch):
             print("\nEpoch {:4d}: ".format(epoch+1))
-
-            #if self.validate:
-            #    if not (isinstance(ValData, Data.DataLoader)):
-            #        msg = f"Don't recognize {type(ValData)}. " +\
-            #            f"Please refer to documentations!"
-            #        raise TypeError(msg)
-            #    #else:
-            #    #    for val_batch in ValData:           
             current = 0
             num_batches = 0
             avg_trng_loss = 0.
@@ -177,18 +201,20 @@ class NeuralNetwork():
                 ener_loss.backward()
                 self.optimizer.step()
                 self.optimizer.zero_grad()
-
                 current += batch[0].shape[0]
                 num_batches += 1
                 avg_trng_loss += ener_mae 
                 print(" Training Loss MSE: {:10.6f}     Training Loss MAE: {:10.4f} [{:5d}/{:5d}]".\
                         format(ener_loss, ener_mae, current, trng_size))
                   
-            avg_trng_loss = avg_trng_loss.detach().to("cpu").numpy()
+            if torch.cuda.is_available():
+                avg_trng_loss = avg_trng_loss.detach().to("cpu").numpy()
+            else:
+                avg_trng_loss = avg_trng_loss.detach().numpy()
+
             print("Average Training Loss {:10.4f} [{:5d}/{:5d}]".\
                         format(avg_trng_loss/num_batches, (epoch+1), 10))
             lst_tr.append(avg_trng_loss/num_batches)
-
             current = 0
             num_batches = 0
             avg_val_loss = 0.
@@ -197,7 +223,6 @@ class NeuralNetwork():
                 with torch.no_grad():
                     for val_batch in ValData:
                         val_ener_loss, val_ener_mae = self.calculate_loss(self.models, val_batch)
-                       
                         num_batches += 1
                         avg_val_loss += val_ener_mae
                         current += val_batch[0].shape[0] 
@@ -208,7 +233,11 @@ class NeuralNetwork():
                         format(avg_val_loss/num_batches, (epoch+1), 10))                   
         
             #scheduler.step()
-            avg_val_loss = avg_val_loss.detach().to("cpu").numpy()
+            if torch.cuda.is_available():
+                avg_val_loss = avg_val_loss.detach().to("cpu").numpy()
+            else:
+                avg_val_loss = avg_val_loss.detach().numpy()
+
             lst_val.append(avg_val_loss/num_batches) 
 
         t1 = time.time()
@@ -219,10 +248,8 @@ class NeuralNetwork():
         savetxt('val_loss', np2, delimiter=',')
 
     def calculate_loss(self, models, batch):
-
         energy_loss = 0.
         energy_mae = 0.
-        
         features = batch[0]
         frces = batch[1]
         energy = batch[2]
@@ -230,13 +257,11 @@ class NeuralNetwork():
         #print("features shape", features.shape)
         #print("frces shape", frces.shape)
         #print("energy shape", energy.shape)
-        
         _Energy = 0
         Energy = energy[0::1,0,:]
         #print("Energy", Energy)
 
         for element, model in models.items():
-
             if self.validate:
                 model.eval()
 
@@ -250,22 +275,6 @@ class NeuralNetwork():
             #print("_enery shape", _energy.shape)
             #print("_energy", _energy)
             _Energy += _energy
-            #params = list(model.parameters())
-            #print("len(params)", len(params))
-            #print("params l1")
-            #for param in params[0]:
-            #print(params[0])
-            #print("params l2")
-            #for param in params[1]:
-            #print(params[1])
-            #print("params l3")
-            #print(params[2])
-            #print("params l4")
-            #print(params[3]) 
-            #print("params l5")
-            #print(params[4])
-            #print("params l6") 
-            #print(params[5])
 
         #print("_Energy shape", _Energy.shape)
         #print("_Energy", _Energy)
