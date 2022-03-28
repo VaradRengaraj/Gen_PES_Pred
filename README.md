@@ -12,7 +12,6 @@ Generic Inter-atomic potentials prediction
 - Pytorch based Dataloader(cache enabled due to large size of training HDF5 file)
 - HDF5 based dataset generation
 - Cuda enabled if supported
-- Notes section updated
 
 ### TODO's
 
