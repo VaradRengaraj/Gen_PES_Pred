@@ -18,3 +18,5 @@ Generic Inter-atomic potentials prediction
 - How to reach neural network's convergence for different atoms? (Generic network)
 - Explore options to fix the coulomb matrix size if neural network's convergence could not be achieved.
 - Force training 
+- Integrate with open source package like ASE
+- Deliver a production line code
